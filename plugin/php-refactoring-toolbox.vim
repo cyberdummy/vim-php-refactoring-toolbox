@@ -30,7 +30,7 @@ if !exists('g:vim_php_refactoring_auto_validate_rename')
 endif
 
 if !exists('g:vim_php_refactoring_auto_validate_visibility')
-    let g:vim_php_refactoring_ask_visibility = g:vim_php_refactoring_auto_validate
+    let g:vim_php_refactoring_auto_validate_visibility = g:vim_php_refactoring_auto_validate
 endif
 
 if !exists('g:vim_php_refactoring_default_property_visibility')
@@ -44,18 +44,19 @@ endif
 
 " Refactoring mapping {{{
 if g:vim_php_refactoring_use_default_mapping == 1
-    nnoremap <unique> <Leader>rlv :call PhpRenameLocalVariable()<CR>
-    nnoremap <unique> <Leader>rcv :call PhpRenameClassVariable()<CR>
-    nnoremap <unique> <Leader>eu :call PhpExtractUse()<CR>
-    nnoremap <unique> <Leader>rm :call PhpRenameMethod()<CR>
-    vnoremap <unique> <Leader>ec :call PhpExtractConst()<CR>
-    nnoremap <unique> <Leader>ep :call PhpExtractClassProperty()<CR>
-    vnoremap <unique> <Leader>em :call PhpExtractMethod()<CR>
-    nnoremap <unique> <Leader>np :call PhpCreateProperty()<CR>
-    nnoremap <unique> <Leader>du :call PhpDetectUnusedUseStatements()<CR>
-    vnoremap <unique> <Leader>== :call PhpAlignAssigns()<CR>
-    nnoremap <unique> <Leader>sg :call PhpCreateSettersAndGetters()<CR>
-    nnoremap <unique> <Leader>da :call PhpDocAll()<CR>
+    nnoremap <Leader>rlv :call PhpRenameLocalVariable()<CR>
+    nnoremap <Leader>rcv :call PhpRenameClassVariable()<CR>
+    nnoremap <Leader>eu :call PhpExtractUse()<CR>
+    nnoremap <Leader>rm :call PhpRenameMethod()<CR>
+    vnoremap <Leader>ec :call PhpExtractConst()<CR>
+    nnoremap <Leader>ep :call PhpExtractClassProperty()<CR>
+    vnoremap <Leader>em :call PhpExtractMethod()<CR>
+    nnoremap <Leader>np :call PhpCreateProperty()<CR>
+    nnoremap <Leader>du :call PhpDetectUnusedUseStatements()<CR>
+    vnoremap <Leader>== :call PhpAlignAssigns()<CR>
+    nnoremap <Leader>sg :call PhpCreateSettersAndGetters()<CR>
+    nnoremap <Leader>da :call PhpDocAll()<CR>
+    nnoremap <Leader>ad :call PhpAddDependency()<CR>
 endif
 " }}}
 
@@ -342,6 +343,49 @@ function! PhpAlignAssigns() range " {{{
         let l:newline = substitute(l:oldline,l:expr,l:formatter,"")
         call setline(l:line,l:newline)
     endfor
+endfunction
+" }}}
+
+function! PhpAddDependency() " {{{
+    let l:name = inputdialog("Name of new variable: ")
+    let l:fqcn = inputdialog("Namespace: ")
+
+    normal mt
+    if s:PhpSearchInCurrentClass('construct[\t\n \r]*(', 'e') > 0
+        let l:constLine = line('.')
+        normal %
+        let l:argument = '$'.l:name
+        if l:fqcn != ''
+            let l:argument = s:PhpGetShortClassName(l:fqcn).' '.l:argument
+        endif
+        if search('[^ \t\n\r]', 'Wb') > 0
+            if (getline('.')[col('.')-1] != '(')
+                if line('.') != l:constLine
+                    let l:argument = ",\n".l:argument
+                else
+                    let l:argument = ', '.l:argument
+                endif
+            endif
+
+            " insert constructor arg
+            exec "normal! a".l:argument."\<esc>"
+            " insert setter
+            " find constructor closing brace and insert the line above it
+            call search('}', 'W')
+            normal k
+            call append(line('.'), '$this->'.l:name.' = $'.l:name.';')
+            normal j==
+
+            " insert property
+            call s:PhpInsertProperty(l:name, 'protected')
+
+            " insert use statement
+            if l:fqcn != ''
+                call s:PhpInsertUseStatement(l:fqcn)
+            endif
+        endif
+        normal `t
+    endif
 endfunction
 " }}}
 
